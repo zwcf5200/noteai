@@ -10,10 +10,15 @@ import { useIsDark } from '../util/services.js';
 import '../styles.css'
 import { SidebarChat } from './SidebarChat.js';
 import ErrorBoundary from './ErrorBoundary.js';
+import { VaultExplorer } from './VaultExplorer.js';
+import { BacklinksPanel } from './BacklinksPanel.js';
+import { useSettingsState } from '../util/services.js';
 
 export const Sidebar = ({ className }: { className: string }) => {
+	const isDark = useIsDark();
+	const settingsState = useSettingsState();
+	const { vaultPath } = settingsState.globalSettings;
 
-	const isDark = useIsDark()
 	return <div
 		className={`@@void-scope ${isDark ? 'dark' : ''}`}
 		style={{ width: '100%', height: '100%' }}
@@ -24,18 +29,24 @@ export const Sidebar = ({ className }: { className: string }) => {
 				w-full h-full
 				bg-void-bg-2
 				text-void-fg-1
+				flex flex-col overflow-hidden
 			`}
 		>
-
-			<div className={`w-full h-full`}>
+			{vaultPath ? (
+				<>
+					<ErrorBoundary>
+						<VaultExplorer />
+					</ErrorBoundary>
+					<ErrorBoundary>
+						<BacklinksPanel />
+					</ErrorBoundary>
+				</>
+			) : (
 				<ErrorBoundary>
 					<SidebarChat />
 				</ErrorBoundary>
-
-			</div>
+			)}
 		</div>
 	</div>
-
-
 }
 

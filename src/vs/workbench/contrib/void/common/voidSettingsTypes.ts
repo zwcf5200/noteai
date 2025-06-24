@@ -452,6 +452,7 @@ export type GlobalSettings = {
 	isOnboardingComplete: boolean;
 	disableSystemMessage: boolean;
 	autoAcceptLLMChanges: boolean;
+	vaultPath: string | null;
 }
 
 export const defaultGlobalSettings: GlobalSettings = {
@@ -468,6 +469,7 @@ export const defaultGlobalSettings: GlobalSettings = {
 	isOnboardingComplete: false,
 	disableSystemMessage: false,
 	autoAcceptLLMChanges: false,
+	vaultPath: null,
 }
 
 export type GlobalSettingName = keyof GlobalSettings

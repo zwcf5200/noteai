@@ -1549,10 +1549,35 @@ Use Model Context Protocol to provide Agent mode with more tools.
 								</ErrorBoundary>
 							</div>
 
-
-
-
-
+							{/* Vault Configuration section */}
+							<div className={shouldShowTab('general') ? `` : 'hidden'}>
+								<ErrorBoundary>
+									<h2 className='text-3xl mb-2'>Vault Configuration</h2>
+									<h4 className='text-void-fg-3 mb-4'>Select the root folder for your Obsidian-style notes.</h4>
+									<div className='my-2'>
+										<div className='text-sm text-void-fg-3 mb-1'>Current Vault Path:</div>
+										<div className='px-3 py-2 bg-void-bg-2 text-void-fg-1 rounded-sm mb-2'>
+											{settingsState.globalSettings.vaultPath || 'Not set'}
+										</div>
+										<VoidButtonBgDarken
+											className='px-4 py-1'
+											onClick={async () => {
+												const dialogService = accessor.get('IDialogService');
+												const result = await dialogService.showOpenDialog({
+													canSelectFiles: false,
+													canSelectFolders: true,
+													title: 'Select Vault Folder'
+												});
+												if (result && result.length > 0) {
+													voidSettingsService.setGlobalSetting('vaultPath', result[0].fsPath);
+												}
+											}}
+										>
+											Select Vault Folder
+										</VoidButtonBgDarken>
+									</div>
+								</ErrorBoundary>
+							</div>
 						</div>
 
 					</div>

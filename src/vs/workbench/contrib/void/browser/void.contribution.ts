@@ -83,3 +83,9 @@ import '../common/voidUpdateService.js'
 
 // model service
 import '../common/voidModelService.js'
+
+// wikilink service
+import '../common/wikilinkService.js'
+
+// wikilink editor navigation
+import './wikilinkNavigationContribution.js'

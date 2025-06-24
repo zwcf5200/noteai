@@ -89,3 +89,6 @@ import '../common/wikilinkService.js'
 
 // wikilink editor navigation
 import './wikilinkNavigationContribution.js'
+
+// void language features (e.g., completions)
+import './VoidLanguageFeaturesContribution.js'

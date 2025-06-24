@@ -127,8 +127,10 @@ export class WikilinkNavigationContribution extends Disposable implements IEdito
                             event.event.stopPropagation(); // Prevent default editor actions
                             return;
                         } else {
-                            // Optionally offer to create note
-                            console.warn(`Wikilink target not found: ${linkName}`);
+                            // Offer to create note
+                            this.offerToCreateNote(linkName, model.uri);
+                            event.event.stopPropagation();
+                            return;
                         }
                     }
                 }
@@ -138,6 +140,57 @@ export class WikilinkNavigationContribution extends Disposable implements IEdito
 
     private clearDecorations(): void {
         this.currentDecorations = this.editor.deltaDecorations(this.currentDecorations, []);
+    }
+
+    override dispose(): void {
+        super.dispose();
+        dispose(this.modelListeners);
+        this.clearDecorations();
+    }
+
+    private async offerToCreateNote(linkName: string, sourceModelUri: URI): Promise<void> {
+        const dialogService = this.instantiationService.get(IDialogService);
+        const fileService = this.instantiationService.get(IFileService);
+        const editorService = this.instantiationService.get(IEditorService);
+        const voidSettingsService = this.instantiationService.get(IVoidSettingsService);
+
+        const vaultPathString = voidSettingsService.state.globalSettings.vaultPath;
+        if (!vaultPathString) return; // Should not happen if we are in a vault context
+
+        const confirmation = await dialogService.confirm({
+            message: `Note "${linkName}" does not exist. Create it?`,
+            primaryButton: 'Create Note',
+            cancelButton: 'Cancel'
+        });
+
+        if (confirmation.confirmed) {
+            let newFileName = linkName.trim();
+            // Basic sanitization: replace characters not suitable for filenames, could be more robust
+            newFileName = newFileName.replace(/[\\/:*?"<>|]/g, '-');
+            if (!newFileName.toLowerCase().endsWith('.md')) {
+                newFileName += '.md';
+            }
+
+            // For now, create in the root of the vault.
+            // Future: could offer to select folder or use sourceModelUri's folder.
+            const vaultUri = URI.file(vaultPathString);
+            const newFileUri = URI.joinPath(vaultUri, newFileName);
+
+            try {
+                if (await fileService.exists(newFileUri)) {
+                    // Should ideally not happen if resolveLink failed, but as a safeguard:
+                    await dialogService.info(`Note "${newFileName}" already exists.`);
+                    editorService.openEditor({ resource: newFileUri });
+                } else {
+                    await fileService.createFile(newFileUri, undefined, { overwrite: false });
+                    editorService.openEditor({ resource: newFileUri });
+                    // WikilinkService watcher should pick this up and update index.
+                }
+            } catch (error) {
+                console.error("Error creating new note from wikilink:", error);
+                dialogService.error(`Failed to create note: ${error}`);
+            }
+        }
     }
 
     override dispose(): void {

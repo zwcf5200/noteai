@@ -7,10 +7,18 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { Emitter, Event } from '../../../../base/common/event';
 import { IVoidModelService } from './voidModelService';
 
+// Define a structure for parsed links, which can include a header
+export interface IParsedWikilink {
+    targetNoteName: string; // Normalized name of the target note
+    targetHeader?: string;  // Optional header, raw string
+    // originalLinkText: string; // Might be useful for display or advanced features
+}
+
 export interface INote {
     uri: URI;
-    name: string; // Derived from filename, e.g., "My Note.md" -> "My Note"
-    links: string[]; // Array of target note names, e.g., ["Another Note", "Topic X"]
+    name: string; // Derived from filename, e.g., "My Note.md" -> "My Note" (normalized)
+    links: IParsedWikilink[]; // Array of parsed wikilink objects
+    headers: string[]; // List of headers in this note (for Task 6.2)
 }
 
 export interface IWikilinkService {
@@ -49,17 +57,29 @@ class WikilinkService extends Disposable implements IWikilinkService {
     }
 
     private async handleSettingsChange(): Promise<void> {
-        const newVaultPathString = this.voidSettingsService.state.globalSettings.vaultPath;
+        const settings = this.voidSettingsService.state.globalSettings;
+        const newVaultPathString = settings.vaultPath;
         const newVaultPath = newVaultPathString ? URI.file(newVaultPathString) : null;
 
-        if (this.vaultPath?.toString() === newVaultPath?.toString()) {
-            return;
-        }
+        const vaultChanged = this.vaultPath?.toString() !== newVaultPath?.toString();
+        // Check if wikilink settings that affect normalization have changed
+        const oldCaseSensitive = this.voidSettingsService.state.globalSettings.wikilinkCaseSensitive; // Need to store previous or re-evaluate
+        const oldSpaceReplacement = this.voidSettingsService.state.globalSettings.wikilinkSpaceReplacement;
+        // For simplicity, we'll assume if settings object changed, these might have too.
+        // A more robust way is to compare old and new values of these specific settings.
+        // Let's assume any change to onDidChangeState might mean these changed, or vault path changed.
 
-        this.vaultPath = newVaultPath;
+        this.vaultPath = newVaultPath; // Update vault path first
+
+        // If vault path OR relevant wikilink settings changed, rebuild index and update watcher
+        // For now, any settings state change will trigger re-evaluation and potential rebuild.
+        // This could be optimized by comparing specific old/new settings values.
+
         this.disposeFileWatcher();
 
         if (this.vaultPath) {
+            // Always rebuild index if settings change and vault path is valid,
+            // as normalization rules might have changed.
             await this.buildIndex();
             this.fileWatcher = this.fileService.watch(this.vaultPath);
             this._register(this.fileWatcher);
@@ -118,20 +138,33 @@ class WikilinkService extends Disposable implements IWikilinkService {
 
             const content = model.getValue();
             const noteName = this.normalizeNoteName(this.getNoteNameFromUri(fileUri));
+            const links: IParsedWikilink[] = [];
+            const headers: string[] = [];
 
-            // Simple wikilink regex: [[Link Name]] or [[Link Name|Display Text]]
-            // This needs to be more robust to handle various edge cases.
-            const linkRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-            const links: string[] = [];
+            // Regex for [[NoteName#Header|Alias]] or [[NoteName|Alias]] or [[NoteName#Header]] or [[NoteName]]
+            // Captures: 1=Full Link, 2=NoteName, 3=HeaderPart (optional, starting with #), 4=HeaderContent (if 3 exists), 5=AliasPart (optional)
+            const linkRegex = /\[\[([^\]#|]+)(#([^\]|]+))?(?:\|([^\]]+))?\]\]/g;
             let match;
             while ((match = linkRegex.exec(content)) !== null) {
-                links.push(this.normalizeNoteName(match[1].trim()));
+                const targetNote = this.normalizeNoteName(match[1].trim());
+                const targetHeader = match[3] ? match[3].trim() : undefined; // match[3] is '#Header', so trim '#'
+                links.push({
+                    targetNoteName: targetNote,
+                    targetHeader: targetHeader ? targetHeader.substring(1) : undefined // Store header without '#'
+                });
+            }
+
+            // Regex for Markdown headers (ATX style)
+            const headerRegex = /^(#{1,6})\s+(.+)/gm;
+            while ((match = headerRegex.exec(content)) !== null) {
+                headers.push(match[2].trim());
             }
 
             const note: INote = {
                 uri: fileUri,
                 name: noteName,
                 links: links,
+                headers: headers,
             };
             this.notesIndex.set(noteName, note);
             this.uriToNoteName.set(fileUri.toString(), noteName);
@@ -185,9 +218,19 @@ class WikilinkService extends Disposable implements IWikilinkService {
     }
 
     private normalizeNoteName(name: string): string {
-        // Basic normalization: lowercase and replace spaces with hyphens (configurable later)
-        // This is important for matching links like "My Note" to "my-note.md"
-        return name.toLowerCase().replace(/\s+/g, '-');
+        const settings = this.voidSettingsService.state.globalSettings;
+        let normalized = name;
+
+        if (!settings.wikilinkCaseSensitive) {
+            normalized = normalized.toLowerCase();
+        }
+
+        if (settings.wikilinkSpaceReplacement === 'hyphen') {
+            normalized = normalized.replace(/\s+/g, '-');
+        }
+        // If 'none', spaces are kept. Other rules could be added here.
+
+        return normalized;
     }
 
     // --- Interface Methods ---

@@ -92,3 +92,12 @@ import './wikilinkNavigationContribution.js'
 
 // void language features (e.g., completions)
 import './VoidLanguageFeaturesContribution.js'
+
+// tag service
+import '../common/tagService.js'
+
+// search service
+import '../common/vaultSearchService.js'
+
+// obsidian commands for command palette
+import './obsidianCommands.js'

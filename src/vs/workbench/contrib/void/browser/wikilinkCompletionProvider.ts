@@ -13,7 +13,13 @@ export class WikilinkCompletionProvider implements monaco.languages.CompletionIt
         private readonly voidSettingsService: IVoidSettingsService
     ) {}
 
-    triggerCharacters = ['['];
+    triggerCharacters = ['[', '#']; // Add '#' as a trigger character
+
+    private getNoteNameFromLinkContext(textBeforeCursor: string): string | null {
+        // Extracts "NoteName" from "[[NoteName#"
+        const match = textBeforeCursor.match(/\[\[([^#|\]]+)#$/);
+        return match ? match[1] : null;
+    }
 
     async provideCompletionItems(
         model: ITextModel,
@@ -27,50 +33,94 @@ export class WikilinkCompletionProvider implements monaco.languages.CompletionIt
         }
 
         const lineContent = model.getLineContent(position.lineNumber);
-        // Check if we are inside [[...
-        // A more robust check would involve looking at the character before position.column -1 (current char)
-        // and position.column - 2 (char before that)
-        const textBeforeCursor = lineContent.substring(0, position.column -1);
+        const textBeforeCursor = lineContent.substring(0, position.column - 1); // Text before the character that triggered completion
 
-        if (!textBeforeCursor.endsWith('[[')) {
-             // Check if we are already typing a link: [[Alr
-            const openLinkMatch = textBeforeCursor.match(/\[\[([^\]]*)$/);
-            if (!openLinkMatch) {
-                return undefined;
-            }
-        }
-
-        // If we are here, we are likely typing inside [[...]]
-        // Extract the currently typed part of the link
-        let currentLinkText = "";
-        const linkStartMatch = textBeforeCursor.match(/\[\[([^\]]*)$/);
-        if (linkStartMatch && linkStartMatch[1]) {
-            currentLinkText = linkStartMatch[1];
-        }
-
-        const notes = this.wikilinkService.getNotes();
         const suggestions: CompletionItem[] = [];
 
-        notes.forEach((note, normalizedName) => {
-            // Note names in the index are already normalized (e.g., "my-note")
-            // The actual filename might be "My Note.md"
-            // For display and filtering, we might want to use the original filename without extension
-            const originalFileNameWithoutExtension = note.uri.path.substring(note.uri.path.lastIndexOf('/') + 1).replace(/\.md$/i, '');
-
-            if (originalFileNameWithoutExtension.toLowerCase().includes(currentLinkText.toLowerCase())) {
-                suggestions.push({
-                    label: originalFileNameWithoutExtension, // Show "My Note"
-                    kind: CompletionItemKind.File,
-                    insertText: originalFileNameWithoutExtension, // Insert "My Note"
-                    range: monaco.Range.fromPositions(
-                        position.delta(0, -currentLinkText.length), // From start of currentLinkText
-                        position // To current cursor position
-                    ),
-                    detail: note.uri.fsPath,
+        // Case 1: Triggered by '[' for note name completion
+        if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter === '[') {
+            if (textBeforeCursor.endsWith('[')) { // We are at [[
+                const notes = this.wikilinkService.getNotes();
+                notes.forEach((note, _normalizedName) => {
+                    const originalFileNameWithoutExtension = note.uri.path.substring(note.uri.path.lastIndexOf('/') + 1).replace(/\.md$/i, '');
+                    suggestions.push({
+                        label: originalFileNameWithoutExtension,
+                        kind: CompletionItemKind.File,
+                        insertText: originalFileNameWithoutExtension,
+                        range: monaco.Range.fromPositions(position, position), // Insert at cursor
+                        detail: `link to note: ${originalFileNameWithoutExtension}`,
+                    });
                 });
             }
-        });
+        }
+        // Case 2: Triggered by typing inside an already started [[link for note name
+        else if (!textBeforeCursor.endsWith('#')) { // Avoid conflict with header completion if '#' was just typed
+            const noteLinkMatch = textBeforeCursor.match(/\[\[([^#\]]*)$/);
+            if (noteLinkMatch) {
+                const currentTypedNoteName = noteLinkMatch[1];
+                const notes = this.wikilinkService.getNotes();
+                notes.forEach((note, _normalizedName) => {
+                    const originalFileNameWithoutExtension = note.uri.path.substring(note.uri.path.lastIndexOf('/') + 1).replace(/\.md$/i, '');
+                    if (originalFileNameWithoutExtension.toLowerCase().includes(currentTypedNoteName.toLowerCase())) {
+                        suggestions.push({
+                            label: originalFileNameWithoutExtension,
+                            kind: CompletionItemKind.File,
+                            insertText: originalFileNameWithoutExtension,
+                            range: monaco.Range.fromPositions(position.delta(0, -currentTypedNoteName.length), position),
+                            detail: `link to note: ${originalFileNameWithoutExtension}`,
+                        });
+                    }
+                });
+            }
+        }
 
-        return { suggestions };
+        // Case 3: Triggered by '#' for header completion
+        if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter === '#') {
+            const noteNameForHeader = this.getNoteNameFromLinkContext(textBeforeCursor + "#"); // Add # back as it's consumed
+            if (noteNameForHeader) {
+                const targetNotes = this.wikilinkService.findTargetNotes(noteNameForHeader); // findTargetNotes uses normalized name
+                if (targetNotes.length > 0) {
+                    const targetNote = targetNotes[0]; // Assume first match for simplicity
+                    targetNote.headers.forEach(header => {
+                        suggestions.push({
+                            label: header,
+                            kind: CompletionItemKind.Reference, // Or Text, Constant, etc.
+                            insertText: header,
+                            range: monaco.Range.fromPositions(position, position), // Insert at cursor
+                            detail: `header in ${targetNote.name}`,
+                        });
+                    });
+                }
+            }
+        }
+        // Case 4: Triggered by typing after # in [[NoteName#headerPart
+        else if (textBeforeCursor.includes('#')) {
+            const headerLinkMatch = textBeforeCursor.match(/\[\[([^#|\]]+)#([^\]]*)$/);
+            if (headerLinkMatch) {
+                const noteNameForHeader = headerLinkMatch[1];
+                const currentTypedHeader = headerLinkMatch[2];
+                const targetNotes = this.wikilinkService.findTargetNotes(noteNameForHeader);
+                if (targetNotes.length > 0) {
+                    const targetNote = targetNotes[0];
+                    targetNote.headers.forEach(header => {
+                        if (header.toLowerCase().includes(currentTypedHeader.toLowerCase())) {
+                            suggestions.push({
+                                label: header,
+                                kind: CompletionItemKind.Reference,
+                                insertText: header,
+                                range: monaco.Range.fromPositions(position.delta(0, -currentTypedHeader.length), position),
+                                detail: `header in ${targetNote.name}`,
+                            });
+                        }
+                    });
+                }
+            }
+        }
+
+
+        if (suggestions.length > 0) {
+            return { suggestions };
+        }
+        return undefined;
     }
 }

@@ -116,19 +116,42 @@ export class WikilinkNavigationContribution extends Disposable implements IEdito
         if (target.type === 6 /* CONTENT_TEXT */ && target.detail?.decorations) {
             for (const decoration of target.detail.decorations) {
                 if (decoration.className === 'void-wikilink') { // Check our specific class
-                    const linkNameWithBrackets = model.getValueInRange(decoration.range);
-                    // Extract link name: [[Link Name]] or [[Link Name|Display]] -> Link Name
-                    const match = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/.exec(linkNameWithBrackets);
-                    if (match && match[1]) {
-                        const linkName = match[1].trim();
-                        const targetUri = this.wikilinkService.resolveLink(model.uri, linkName);
+                    const linkTextWithBrackets = model.getValueInRange(decoration.range);
+                    // Regex to extract note name and optional header: [[NoteName(#Header)?(|Alias)?]]
+                    // Captures: 1=NoteName, 2=#Header (optional), 3=Header (optional, without #)
+                    const linkParseRegex = /\[\[([^\]#|]+)(#([^\]|]+))?(?:\|[^\]]+)?\]\]/;
+                    const parsedLinkMatch = linkParseRegex.exec(linkTextWithBrackets);
+
+                    if (parsedLinkMatch && parsedLinkMatch[1]) {
+                        const targetNoteName = parsedLinkMatch[1].trim();
+                        const targetHeader = parsedLinkMatch[3] ? parsedLinkMatch[3].trim() : undefined;
+
+                        const targetUri = this.wikilinkService.resolveLink(model.uri, targetNoteName);
+
                         if (targetUri) {
-                            this.editorService.openEditor({ resource: targetUri });
-                            event.event.stopPropagation(); // Prevent default editor actions
+                            this.editorService.openEditor({
+                                resource: targetUri,
+                                options: { preserveFocus: false }
+                            }).then(openedEditor => {
+                                if (openedEditor && targetHeader) {
+                                    // Attempt to find and reveal the header
+                                    const editorControl = openedEditor.getControl() as ICodeEditor | null;
+                                    if (editorControl && editorControl.getModel()) {
+                                        const targetModel = editorControl.getModel();
+                                        if (targetModel) {
+                                            const headerLine = this.findHeaderLine(targetModel, targetHeader);
+                                            if (headerLine !== -1) {
+                                                editorControl.revealLineInCenterIfOutsideViewport(headerLine, 0 /* ScrollType.Smooth */);
+                                                editorControl.setPosition({ lineNumber: headerLine, column: 1 });
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                            event.event.stopPropagation();
                             return;
                         } else {
-                            // Offer to create note
-                            this.offerToCreateNote(linkName, model.uri);
+                            this.offerToCreateNote(targetNoteName, model.uri); // Pass targetNoteName
                             event.event.stopPropagation();
                             return;
                         }
@@ -136,6 +159,31 @@ export class WikilinkNavigationContribution extends Disposable implements IEdito
                 }
             }
         }
+    }
+
+    private findHeaderLine(model: ITextModel, headerText: string): number {
+        const headerRegexes = [
+            new RegExp(`^#\\s+${this.escapeRegex(headerText)}\\s*$`, 'im'),
+            new RegExp(`^##\\s+${this.escapeRegex(headerText)}\\s*$`, 'im'),
+            new RegExp(`^###\\s+${this.escapeRegex(headerText)}\\s*$`, 'im'),
+            new RegExp(`^####\\s+${this.escapeRegex(headerText)}\\s*$`, 'im'),
+            new RegExp(`^#####\\s+${this.escapeRegex(headerText)}\\s*$`, 'im'),
+            new RegExp(`^######\\s+${this.escapeRegex(headerText)}\\s*$`, 'im'),
+        ];
+        const lineCount = model.getLineCount();
+        for (let i = 1; i <= lineCount; i++) {
+            const lineContent = model.getLineContent(i);
+            for (const regex of headerRegexes) {
+                if (regex.test(lineContent)) {
+                    return i;
+                }
+            }
+        }
+        return -1; // Not found
+    }
+
+    private escapeRegex(string: string): string {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
     }
 
     private clearDecorations(): void {

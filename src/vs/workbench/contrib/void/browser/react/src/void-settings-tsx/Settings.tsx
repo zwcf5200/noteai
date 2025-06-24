@@ -1549,7 +1549,49 @@ Use Model Context Protocol to provide Agent mode with more tools.
 								</ErrorBoundary>
 							</div>
 
-							{/* Vault Configuration section */}
+							{/* Vault Configuration section - This was already added in a previous step, ensure it's under 'general' or its own tab */}
+							{/* For this change, I'll add a new "Wikilink Settings" section under 'general' or 'featureOptions' */}
+							{/* Let's put it under 'featureOptions' for now */}
+							<div className={shouldShowTab('featureOptions') ? `` : 'hidden'}>
+								<ErrorBoundary>
+									{/* ... existing feature options ... then add: */}
+									<div className='mt-8'> {/* Add some spacing */}
+										<h3 className='text-xl mb-2'>Wikilink Behavior</h3>
+										{/* Case Sensitive Wikilinks */}
+										<div className='flex items-center gap-x-2 my-2'>
+											<VoidSwitch
+												size='xs'
+												value={settingsState.globalSettings.wikilinkCaseSensitive}
+												onChange={(newVal) => voidSettingsService.setGlobalSetting('wikilinkCaseSensitive', newVal)}
+											/>
+											<span className='text-void-fg-3 text-xs'>Case-sensitive wikilink matching</span>
+										</div>
+
+										{/* Space Replacement in Wikilinks */}
+										<div className='my-2'>
+											<span className='text-void-fg-3 text-xs mr-2'>Space handling in new links:</span>
+											<VoidCustomDropdownBox
+												className='text-xs text-void-fg-3 bg-void-bg-1 border border-void-border-1 rounded p-0.5 px-1'
+												options={['hyphen', 'none'] as const}
+												selectedOption={settingsState.globalSettings.wikilinkSpaceReplacement}
+												onChangeOption={(newVal) => {
+													voidSettingsService.setGlobalSetting('wikilinkSpaceReplacement', newVal);
+												}}
+												getOptionDisplayName={(val) => val === 'hyphen' ? 'Replace with Hyphen (-)' : 'Keep Spaces'}
+												getOptionDropdownName={(val) => val === 'hyphen' ? 'Replace with Hyphen (-)' : 'Keep Spaces'}
+												getOptionsEqual={(a, b) => a === b}
+											/>
+											<div className='text-xs text-void-fg-3 mt-1 opacity-70'>
+												Controls how spaces in new wikilink targets (e.g., when creating from a non-existent link) are converted for filenames and matching.
+											</div>
+										</div>
+									</div>
+								</ErrorBoundary>
+							</div>
+
+
+							{/* Vault Configuration section (ensure this is correctly placed if it was meant to be separate or under general) */}
+							{/* If it's part of general, it should be within the 'general' tab section */}
 							<div className={shouldShowTab('general') ? `` : 'hidden'}>
 								<ErrorBoundary>
 									<h2 className='text-3xl mb-2'>Vault Configuration</h2>

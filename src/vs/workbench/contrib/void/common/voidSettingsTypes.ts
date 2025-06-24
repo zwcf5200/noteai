@@ -453,6 +453,9 @@ export type GlobalSettings = {
 	disableSystemMessage: boolean;
 	autoAcceptLLMChanges: boolean;
 	vaultPath: string | null;
+	wikilinkCaseSensitive: boolean;
+	wikilinkSpaceReplacement: 'hyphen' | 'none'; // 'hyphen' or 'none' (keep spaces)
+	customCssPath: string | null;
 }
 
 export const defaultGlobalSettings: GlobalSettings = {
@@ -470,6 +473,8 @@ export const defaultGlobalSettings: GlobalSettings = {
 	disableSystemMessage: false,
 	autoAcceptLLMChanges: false,
 	vaultPath: null,
+	wikilinkCaseSensitive: false, // Default to case-insensitive
+	wikilinkSpaceReplacement: 'hyphen', // Default to replacing spaces with hyphens
 }
 
 export type GlobalSettingName = keyof GlobalSettings

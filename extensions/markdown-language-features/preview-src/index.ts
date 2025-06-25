@@ -21,6 +21,7 @@ const settings = new SettingsManager();
 let documentVersion = 0;
 let documentResource = settings.settings.source;
 
+declare function acquireVsCodeApi(): any;
 const vscode = acquireVsCodeApi();
 
 const originalState = vscode.getState() ?? {} as any;

@@ -67,8 +67,7 @@ export class ExtensionLinter {
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
 	private timer: NodeJS.Timeout | undefined;
-	private markdownIt: MarkdownItType.MarkdownIt | undefined;
-	private parse5: typeof import('parse5') | undefined;
+	private markdownIt: MarkdownItType | undefined;
 
 	constructor() {
 		this.disposables.push(
@@ -292,7 +291,7 @@ export class ExtensionLinter {
 			if (!this.markdownIt) {
 				this.markdownIt = new ((await import('markdown-it')).default);
 			}
-			const tokens = this.markdownIt.parse(text, {});
+			const tokens = this.markdownIt.parse(text, {}) || [];
 			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
@@ -335,38 +334,31 @@ export class ExtensionLinter {
 					}
 				});
 
-			let svgStart: Diagnostic;
+			// 处理HTML内容中的图片和SVG
 			for (const tnp of tokensAndPositions) {
 				if (tnp.token.type === 'text' && tnp.token.content) {
-					if (!this.parse5) {
-						this.parse5 = await import('parse5');
+					// 使用正则表达式简单处理HTML标签
+					const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+					const svgRegex = /<svg[^>]*>/gi;
+					let match;
+
+					// 处理img标签
+					while ((match = imgRegex.exec(tnp.token.content)) !== null) {
+						const src = match[1];
+						const begin = text.indexOf(src, tnp.begin);
+						if (begin !== -1 && begin < tnp.end) {
+							this.addDiagnostics(diagnostics, document, begin, begin + src.length, src, Context.MARKDOWN, info);
+						}
 					}
-					const parser = new this.parse5.SAXParser({ locationInfo: true });
-					parser.on('startTag', (name, attrs, _selfClosing, location) => {
-						if (name === 'img') {
-							const src = attrs.find(a => a.name === 'src');
-							if (src && src.value && location) {
-								const begin = text.indexOf(src.value, tnp.begin + location.startOffset);
-								if (begin !== -1 && begin < tnp.end) {
-									this.addDiagnostics(diagnostics, document, begin, begin + src.value.length, src.value, Context.MARKDOWN, info);
-								}
-							}
-						} else if (name === 'svg' && location) {
-							const begin = tnp.begin + location.startOffset;
-							const end = tnp.begin + location.endOffset;
-							const range = new Range(document.positionAt(begin), document.positionAt(end));
-							svgStart = new Diagnostic(range, embeddedSvgsNotValid, DiagnosticSeverity.Warning);
-							diagnostics.push(svgStart);
-						}
-					});
-					parser.on('endTag', (name, location) => {
-						if (name === 'svg' && svgStart && location) {
-							const end = tnp.begin + location.endOffset;
-							svgStart.range = new Range(svgStart.range.start, document.positionAt(end));
-						}
-					});
-					parser.write(tnp.token.content);
-					parser.end();
+
+					// 处理svg标签
+					while ((match = svgRegex.exec(tnp.token.content)) !== null) {
+						const begin = tnp.begin + match.index;
+						const end = begin + match[0].length;
+						const range = new Range(document.positionAt(begin), document.positionAt(end));
+						const diagnostic = new Diagnostic(range, embeddedSvgsNotValid, DiagnosticSeverity.Warning);
+						diagnostics.push(diagnostic);
+					}
 				}
 			}
 
@@ -422,7 +414,7 @@ export class ExtensionLinter {
 		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
 		try {
 			const fileContents = await workspace.fs.readFile(file); // #174888
-			return parseTree(Buffer.from(fileContents).toString('utf-8'));
+			return parseTree(new TextDecoder().decode(fileContents));
 		} catch (err) {
 			return undefined;
 		}

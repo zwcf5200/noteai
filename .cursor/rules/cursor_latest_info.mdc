@@ -1,0 +1,60 @@
+---
+description: 智能更新Cursor版本功能等信息
+globs:
+alwaysApply: false
+---
+
+# 智能更新Cursor信息
+
+针对Cursor信息搜索采用智能更新策略，避免不必要的重复搜索。
+
+## 智能搜索触发条件
+
+仅在以下情况执行搜索：
+1. 距离上次搜索超过7天（通过状态文件追踪）
+2. 用户明确请求最新信息，包含关键词：
+   - "最新"、"更新"、"新版本"
+   - "latest"、"update"、"new version"
+   - "变化"、"改变"、"升级"
+3. 检测到版本相关问题（如API兼容性、功能可用性）
+
+## 搜索优先级分级
+
+搜索内容按重要性分级：
+1. 高优先级（3天更新）：
+   - "Cursor version"、"Cursor release"、"Cursor changelog"
+   - "Cursor API"、"Cursor interface"、"Cursor breaking change"
+2. 中优先级（7天更新）：
+   - "Cursor tools"、"Cursor-tools"
+   - "Cursor best practices"、"Cursor optimization"
+3. 低优先级（14天更新）：
+   - "Cursor examples"、"Cursor tutorial"、"Cursor sample"
+
+## 状态管理机制
+
+1. 维护搜索状态记录文件：`.cursor/states/Cursor_search_state.json`
+2. 记录每类信息的上次搜索时间和结果摘要
+3. 实现增量更新，仅获取新增信息
+4. 结果缓存保存至：`.cursor/cache/Cursor_info/`
+
+## 信息展示策略
+
+1. 默认提供简要更新摘要，而非完整内容
+2. 优先显示版本变更、API更新等关键信息
+3. 次要更新（文档补充、案例）按需展开
+4. 明确标注信息来源和版本号
+
+## 智能提示机制
+
+在以下情况主动提示用户：
+1. 发现重大版本更新或API变更
+2. 检测到用户使用的方法已过时
+3. 发现新工具或最佳实践可能提高效率
+
+## 应用流程
+
+1. 收到Cursor相关问题时，首先检查搜索状态
+2. 根据状态和问题内容决定是否执行搜索
+3. 如需搜索，按优先级获取相关信息
+4. 将结果与状态文件同步
+5. 根据情况提供简要或详细回答

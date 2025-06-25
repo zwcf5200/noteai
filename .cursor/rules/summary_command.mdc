@@ -1,0 +1,98 @@
+---
+description: 会话总结命令处理
+globs:
+alwaysApply: false
+---
+
+# 会话总结命令处理
+
+当用户输入以下命令或关键词时，自动触发会话总结功能：
+
+1. `/summarize`
+2. `/summary`
+3. `/总结`
+4. `/保存会话`
+5. `/记录会话`
+6. `/输出会话`
+7. `/end`
+8. `/结束`
+
+## 处理流程
+
+1. 检测到上述关键词后，立即执行以下操作：
+   - 自动识别当前激活的角色（通过会话内容分析）
+   - 生成结构化会话总结
+   - 直接创建总结文档，无需额外确认
+
+2. 按照角色类型选择适当的总结模板，包含以下内容：
+   - 会话概要
+   - 已完成工作
+   - 进行中工作
+   - 待办事项
+   - 关键决策或问题
+   - 资源与参考
+   - 下次会话准备建议
+
+3. 将文档保存到`docs/agent-guides/`目录，使用以下方式获取时间并命名文件：
+   ```python
+   try:
+       # 使用标准时间格式获取文件名时间戳
+       timestamp = run_terminal_cmd("date '+%Y-%m-%d-%H-%M-%S'").strip()
+       if not timestamp.strip():
+           raise ValueError("Empty timestamp")
+
+       # 验证时间戳格式
+       if not validate_filename_timestamp(timestamp):
+           raise ValueError(f"Invalid timestamp format: {timestamp}")
+
+       filename = f"{role}-guide-{timestamp}.md"
+   except Exception as e:
+       log_error(f"获取时间戳失败: {str(e)}")
+       # 使用备用时间戳格式
+       timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+       filename = f"{role}-guide-{timestamp}.md"
+   ```
+
+4. 向用户确认文件已生成，并提供文件路径：
+   ```python
+   try:
+       # 获取显示时间用于消息
+       display_time = run_terminal_cmd("date '+%Y-%m-%d %H:%M'").strip()
+       print(f"会话总结已生成并保存至：docs/agent-guides/{filename}")
+       print(f"总结时间：{display_time}")
+   except Exception as e:
+       log_error(f"显示时间获取失败: {str(e)}")
+       print(f"会话总结已生成并保存至：docs/agent-guides/{filename}")
+   ```
+
+## 角色识别机制
+
+系统会通过以下方式自动识别当前角色：
+
+1. 分析会话状态记录（.cursor/states/role_state.json）
+2. 检查会话内容中的角色标识
+3. 如未找到明确角色，使用通用模板
+
+## 角色与模板映射
+
+- 架构师(ar)：架构设计、技术决策、接口定义等
+- 产品经理(pm)：需求分析、功能规划、用户场景等
+- 开发工程师(dv)：代码实现、技术方案、调试优化等
+- 测试工程师(qa)：测试执行、测试结果、测试建议等
+- 项目教练(co)：项目规划、进度评估、团队协调等
+- 探索者(ex)：探索发现、设计方案、实施计划等
+
+## 生成确认
+
+完成文档生成后，使用简洁方式通知用户：
+
+```python
+try:
+    # 获取显示时间
+    display_time = run_terminal_cmd("date '+%Y-%m-%d %H:%M'").strip()
+    print(f"""会话总结已生成并保存至：docs/agent-guides/{role}-guide-{timestamp}.md
+总结时间：{display_time}""")
+except Exception as e:
+    log_error(f"显示时间获取失败: {str(e)}")
+    print(f"会话总结已生成并保存至：docs/agent-guides/{role}-guide-{timestamp}.md")
+```

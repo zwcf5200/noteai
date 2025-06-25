@@ -1,0 +1,30 @@
+{
+  "role": "ar",
+  "role_display_name": "架构师",
+  "activation_time": "2025-06-26 00:16:05",
+  "current_task": "VS Code架构分析和技术债务评估",
+  "focus_area": "扩展系统架构设计",
+  "task_progress": 0,
+  "knowledge_base": [
+    "VS Code Extension API架构",
+    "TypeScript项目结构设计",
+    "模块化系统设计模式",
+    "插件化架构最佳实践"
+  ],
+  "preferences": {
+    "detail_level": "comprehensive",
+    "code_example_format": "typescript",
+    "architecture_focus": "scalability_and_maintainability"
+  },
+  "incomplete_tasks": [
+    "分析VS Code扩展系统架构",
+    "评估当前代码库的技术债务",
+    "提供架构优化建议"
+  ],
+  "current_files": [
+    "src/vs/platform/extensions/common/extensions.ts",
+    "src/vs/workbench/api/common/extHost.api.impl.ts",
+    "extensions/typescript-language-features/src/typescriptService.ts"
+  ],
+  "notes": "VS Code是一个基于Electron的可扩展代码编辑器，采用模块化架构设计。当前需要分析其扩展系统的架构模式。"
+}

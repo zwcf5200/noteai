@@ -1,0 +1,110 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# 时间格式标准
+
+## 时间格式规范
+
+1. **文件名时间戳格式**：
+   ```
+   格式：YYYY-MM-DD-HH-mm-ss
+   示例：2025-03-25-19-45-30
+   命令：date '+%Y-%m-%d-%H-%M-%S'
+   ```
+
+2. **显示时间格式**：
+   ```
+   格式：YYYY-MM-DD HH:mm:ss
+   示例：2025-03-25 19:45:30
+   命令：date '+%Y-%m-%d %H:%M:%S'
+   ```
+
+3. **ISO时间格式**：
+   ```
+   格式：YYYY-MM-DDThh:mm:ss±hh:mm
+   示例：2025-03-25T19:45:30+08:00
+   命令：date --iso-8601=seconds
+   ```
+
+## 时间获取函数
+
+1. **获取文件名时间戳**：
+   ```python
+   def get_filename_timestamp():
+       """获取用于文件名的时间戳"""
+       return run_terminal_cmd("date '+%Y-%m-%d-%H-%M-%S'").strip()
+   ```
+
+2. **获取显示时间**：
+   ```python
+   def get_display_time():
+       """获取用于显示的时间"""
+       return run_terminal_cmd("date '+%Y-%m-%d %H:%M:%S'").strip()
+   ```
+
+3. **获取ISO时间**：
+   ```python
+   def get_iso_time():
+       """获取ISO格式时间"""
+       return run_terminal_cmd("date --iso-8601=seconds").strip()
+   ```
+
+## 错误处理规范
+
+1. **命令执行错误**：
+   ```python
+   try:
+       timestamp = run_terminal_cmd("date ...")
+       if not timestamp.strip():
+           raise ValueError("Empty timestamp")
+   except Exception as e:
+       log_error(f"获取时间失败: {str(e)}")
+       return None
+   ```
+
+2. **时间格式验证**：
+   ```python
+   import re
+
+   def validate_filename_timestamp(timestamp: str) -> bool:
+       """验证文件名时间戳格式"""
+       pattern = r'^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$'
+       return bool(re.match(pattern, timestamp))
+
+   def validate_display_time(time_str: str) -> bool:
+       """验证显示时间格式"""
+       pattern = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
+       return bool(re.match(pattern, time_str))
+
+   def validate_iso_time(time_str: str) -> bool:
+       """验证ISO时间格式"""
+       pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$'
+       return bool(re.match(pattern, time_str))
+   ```
+
+## 使用规范
+
+1. **文件命名**：
+   - 总结文件：`{role}-guide-{YYYY-MM-DD-HH-mm-ss}.md`
+   - 备份文件：`{role}-backup-{YYYY-MM-DD-HH-mm-ss}.json`
+   - 评估报告：`evaluation-{YYYY-MM-DD-HH-mm-ss}.md`
+
+2. **时间显示**：
+   - 日志时间：使用显示时间格式
+   - 状态时间：使用ISO时间格式
+   - 文件名：使用文件名时间戳格式
+
+3. **时区处理**：
+   - 默认使用系统时区
+   - 在需要时区转换时使用ISO格式
+   - 存储时保留时区信息
+
+## 注意事项
+
+1. 所有时间相关操作必须使用本规范定义的函数
+2. 不允许直接拼接或硬编码时间字符串
+3. 必须处理时间获取和格式化可能的错误
+4. 在保存时间时应同时记录时区信息
+5. 定期验证时间格式的正确性

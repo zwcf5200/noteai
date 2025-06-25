@@ -1,0 +1,102 @@
+---
+description: 关于Cursor工具库的使用规范
+globs:
+alwaysApply: false
+---
+
+# Cursor工具使用规范
+
+使用Cursor工具时，应遵循以下规范和最佳实践，确保工具的正确使用和高效性能。
+
+## 工具选择原则
+
+1. **优先使用官方工具**：
+   - 优先推荐最新版本的官方cursor-tools库
+   - 确保使用兼容的版本，检查依赖关系
+   - 参考最新GitHub库获取最新工具示例
+
+2. **工具实现规范**：
+   - 所有自定义工具应遵循BaseTool接口规范
+   - 为每个工具提供清晰的名称、描述和使用方法
+   - 实现适当的参数验证和类型检查
+
+## 错误处理机制
+
+1. **异常处理**：
+   - 为每个工具实现完善的异常处理
+   - 捕获并记录可能的API错误、网络问题等
+   - 提供有意义的错误信息，便于调试
+
+2. **重试策略**：
+   - 对于不稳定的外部API调用，实现重试机制
+   - 使用指数退避算法避免API限流
+   - 设置最大重试次数和超时限制
+
+## 性能优化
+
+1. **缓存机制**：
+   - 为重复调用的工具实现缓存
+   - 使用适当的缓存失效策略
+   - 考虑使用Redis等分布式缓存提高性能
+
+2. **并行处理**：
+   - 对于IO密集型工具，考虑异步实现
+   - 使用协程或线程池优化性能
+   - 确保线程安全性
+
+## 代码示例
+
+```python
+from cursor_tools import BaseTool
+from typing import Dict, Any
+import requests
+import time
+import logging
+
+class EnhancedSearchTool(BaseTool):
+    name: str = "enhanced_search"
+    description: str = "Search the web for real-time information with built-in error handling and caching."
+
+    def __init__(self):
+        super().__init__()
+        self.cache = {}
+        self.logger = logging.getLogger(__name__)
+
+    def _run(self, query: str, **kwargs) -> str:
+        """Execute the search with proper error handling and caching."""
+        # Check cache first
+        if query in self.cache:
+            self.logger.info(f"Cache hit for query: {query}")
+            return self.cache[query]
+
+        max_retries = 3
+        backoff = 1
+
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(f"Searching for: {query} (attempt {attempt+1})")
+                # Implement actual search logic here
+                response = requests.get(
+                    "https://api.search.com/v1/search",
+                    params={"q": query},
+                    timeout=10
+                )
+                response.raise_for_status()
+                result = response.json()
+
+                # Cache the result
+                self.cache[query] = result
+                return result
+
+            except requests.exceptions.RequestException as e:
+                self.logger.warning(f"Search attempt {attempt+1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    sleep_time = backoff * (2 ** attempt)
+                    self.logger.info(f"Retrying in {sleep_time} seconds...")
+                    time.sleep(sleep_time)
+                else:
+                    self.logger.error(f"All attempts failed for query: {query}")
+                    return f"Search failed after {max_retries} attempts. Error: {str(e)}"
+```
+
+确保按照上述规范实现和使用Cursor工具，提高工具的可靠性和性能。

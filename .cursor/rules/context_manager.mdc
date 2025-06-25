@@ -1,0 +1,492 @@
+---
+description: 负责管理角色上下文的保存、恢复、验证和备份，确保会话连续性和数据完整性。
+globs:
+alwaysApply: false
+---
+# 上下文管理器
+
+负责管理角色上下文的保存、恢复、验证和备份，确保会话连续性和数据完整性。
+
+## 核心功能
+
+1. **上下文操作**：
+   - 保存上下文到指定文件
+   - 从文件恢复上下文
+   - 合并多个上下文
+   - 清理过期上下文
+
+2. **数据验证**：
+   - 验证上下文数据完整性
+   - 检查必填字段
+   - 验证数据类型和格式
+   - 修复常见错误
+
+3. **自动备份**：
+   - 定时备份上下文文件
+   - 增量备份策略
+   - 版本控制集成
+   - 自动清理过期备份
+
+## 时间处理规范
+
+1. **状态时间记录**
+   - 使用ISO格式时间（YYYY-MM-DDThh:mm:ss±hh:mm）记录所有状态相关时间
+   - 示例：`2025-03-25T19:45:30+08:00`
+   - 获取命令：`date --iso-8601=seconds`
+
+2. **备份文件命名**
+   - 使用文件名时间戳格式（YYYY-MM-DD-HH-mm-ss）
+   - 示例：`context-backup-2025-03-25-19-45-30.json`
+   - 获取命令：`date '+%Y-%m-%d-%H-%M-%S'`
+
+3. **显示时间格式**
+   - 使用人类可读格式（YYYY-MM-DD HH:mm:ss）
+   - 示例：`2025-03-25 19:45:30`
+   - 获取命令：`date '+%Y-%m-%d %H:%M:%S'`
+
+## 数据结构
+
+上下文数据使用以下JSON结构：
+
+```json
+{
+  "role": "角色代码",
+  "created_at": "2025-03-25T19:45:30+08:00",  // ISO格式
+  "updated_at": "2025-03-25T19:45:30+08:00",  // ISO格式
+  "task_data": {
+    "current_task": "当前任务描述",
+    "start_time": "2025-03-25T19:45:30+08:00",  // ISO格式
+    "estimated_completion": "2025-03-26T19:45:30+08:00",  // ISO格式
+    "progress": 30
+  },
+  "session_data": {
+    "last_session_id": "会话ID",
+    "last_session_time": "2025-03-25T19:45:30+08:00"  // ISO格式
+  }
+}
+```
+
+## 备份命名规则
+
+1. **常规备份**：
+   ```
+   .cursor/backups/contexts/{role}-backup-{YYYY-MM-DD-HH-mm-ss}.json
+   ```
+
+2. **自动备份**：
+   ```
+   .cursor/backups/contexts/{role}-auto-{YYYY-MM-DD-HH-mm-ss}.json
+   ```
+
+3. **会话备份**：
+   ```
+   .cursor/backups/contexts/{role}-session-{YYYY-MM-DD-HH-mm-ss}.json
+   ```
+
+## 错误处理规范
+
+1. **时间获取错误**：
+   - 记录错误日志
+   - 使用备用时间获取方式
+   - 通知用户时间获取异常
+
+2. **时间格式验证**：
+   - 验证ISO格式时间
+   - 验证文件名时间戳格式
+   - 验证显示时间格式
+
+3. **时区处理**：
+   - 统一使用系统时区
+   - 在存储时包含时区信息
+   - 在显示时转换为本地时间
+
+## 上下文操作规范
+
+1. **创建上下文**：
+   - 使用ISO格式记录创建时间
+   - 设置初始更新时间
+   - 初始化任务数据
+
+2. **更新上下文**：
+   - 更新 updated_at 为当前ISO时间
+   - 保留原始 created_at 时间
+   - 记录更新历史
+
+3. **备份上下文**：
+   - 使用标准文件名格式
+   - 包含时间戳信息
+   - 保留完整状态
+
+## 显示格式
+
+当显示上下文信息时，使用以下格式：
+
+```
+## 上下文信息：{角色名称}
+
+创建时间：{YYYY-MM-DD HH:mm:ss}
+更新时间：{YYYY-MM-DD HH:mm:ss}
+
+当前任务：{任务描述}
+开始时间：{YYYY-MM-DD HH:mm:ss}
+预计完成：{YYYY-MM-DD HH:mm:ss}
+完成进度：{进度}%
+
+最近会话：{YYYY-MM-DD HH:mm:ss}
+会话ID：{会话ID}
+```
+
+## 注意事项
+
+1. 所有时间相关操作必须遵循统一的时间格式标准
+2. 存储时使用ISO格式以保证时区信息完整
+3. 显示时使用人类可读格式提高可读性
+4. 文件名使用标准时间戳格式确保唯一性和排序
+5. 必须处理所有可能的时间获取和格式化错误
+
+## 文件结构
+
+1. **上下文文件** (`.cursor/contexts/{role}_context.json`)：
+```json
+{
+  "role": "角色代码",
+  "version": "上下文版本号",
+  "last_updated": "最后更新时间",
+  "metadata": {
+    "created_at": "创建时间",
+    "creator": "创建者",
+    "description": "上下文描述"
+  },
+  "current_task": {
+    "id": "任务ID",
+    "name": "任务名称",
+    "description": "任务描述",
+    "status": "进行中/已完成/已暂停",
+    "progress": 0,
+    "start_time": "开始时间",
+    "estimated_completion": "预计完成时间"
+  },
+  "knowledge_base": {
+    "topics": ["相关主题"],
+    "key_decisions": [
+      {
+        "id": "决策ID",
+        "description": "决策描述",
+        "reason": "决策原因",
+        "timestamp": "决策时间"
+      }
+    ],
+    "references": [
+      {
+        "type": "文档类型",
+        "path": "文件路径",
+        "description": "文档描述"
+      }
+    ]
+  },
+  "work_state": {
+    "focus_files": ["当前关注的文件"],
+    "incomplete_tasks": [
+      {
+        "id": "任务ID",
+        "description": "任务描述",
+        "priority": "优先级",
+        "blocked_by": ["阻塞任务ID"]
+      }
+    ],
+    "notes": ["工作笔记"]
+  },
+  "session_data": {
+    "last_session_id": "上次会话ID",
+    "last_session_summary": "上次会话总结文件路径",
+    "active_time": 0,
+    "completion_rate": 0
+  }
+}
+```
+
+2. **验证规则** (`.cursor/templates/context_validator.json`)：
+```json
+{
+  "version": "1.0",
+  "required_fields": [
+    "role",
+    "version",
+    "last_updated",
+    "metadata",
+    "current_task",
+    "work_state"
+  ],
+  "field_types": {
+    "role": "string",
+    "version": "string",
+    "last_updated": "datetime",
+    "progress": "number",
+    "status": {
+      "type": "enum",
+      "values": ["进行中", "已完成", "已暂停"]
+    }
+  },
+  "validation_rules": {
+    "progress": {
+      "type": "range",
+      "min": 0,
+      "max": 100
+    },
+    "last_updated": {
+      "type": "datetime",
+      "format": "ISO8601"
+    }
+  }
+}
+```
+
+## 操作流程
+
+### 1. 保存上下文
+
+```python
+def save_context(role: str, context: dict) -> bool:
+    """保存角色上下文
+
+    Args:
+        role: 角色代码
+        context: 上下文数据
+
+    Returns:
+        保存是否成功
+    """
+    # 1. 验证上下文数据
+    if not validate_context(context):
+        return False
+
+    # 2. 创建备份
+    create_backup(role)
+
+    # 3. 保存文件
+    file_path = f".cursor/contexts/{role}_context.json"
+    try:
+        with open(file_path, 'w') as f:
+            json.dump(context, f, indent=2)
+        return True
+    except Exception as e:
+        log_error(f"保存上下文失败: {str(e)}")
+        restore_from_backup(role)
+        return False
+```
+
+### 2. 恢复上下文
+
+```python
+def load_context(role: str) -> dict:
+    """加载角色上下文
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        上下文数据或空字典
+    """
+    # 1. 尝试加载主文件
+    file_path = f".cursor/contexts/{role}_context.json"
+    try:
+        with open(file_path, 'r') as f:
+            context = json.load(f)
+
+        # 2. 验证数据
+        if validate_context(context):
+            return context
+
+        # 3. 尝试修复
+        fixed_context = fix_context(context)
+        if fixed_context:
+            return fixed_context
+
+    except FileNotFoundError:
+        # 4. 尝试从备份恢复
+        backup_context = load_from_backup(role)
+        if backup_context:
+            return backup_context
+
+    # 5. 创建新上下文
+    return create_new_context(role)
+```
+
+### 3. 自动备份
+
+```python
+def create_backup(role: str) -> str:
+    """创建上下文备份
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        str: 备份文件路径
+    """
+    # 获取当前时间戳
+    timestamp = run_terminal_cmd("date '+%Y%m%d_%H%M%S'").strip()
+    target = f".cursor/backups/contexts/{role}_{timestamp}.json"
+
+    # 执行备份操作
+    shutil.copy2(get_context_file_path(role), target)
+    return target
+
+def update_context(role: str, data: dict) -> bool:
+    """更新上下文数据
+
+    Args:
+        role: 角色代码
+        data: 要更新的数据
+
+    Returns:
+        bool: 是否更新成功
+    """
+    # 获取当前时间
+    current_time = run_terminal_cmd("date '+%Y-%m-%d %H:%M:%S'").strip()
+
+    context = load_context(role)
+    context.update(data)
+    context['updated_at'] = current_time
+
+    return save_context(role, context)
+
+def create_context(role: str) -> bool:
+    """创建新的上下文文件
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        bool: 是否创建成功
+    """
+    # 获取当前时间
+    current_time = run_terminal_cmd("date '+%Y-%m-%d %H:%M:%S'").strip()
+
+    # 创建基础上下文
+    context = {
+        'role': role,
+        'created_at': current_time,
+        'updated_at': current_time,
+        'task_data': {
+            'current_task': None,
+            'progress': 0,
+            'start_time': None,
+            'estimated_completion': None
+        },
+        'session_data': {
+            'last_session_id': None,
+            'last_session_summary': None
+        }
+    }
+
+    return save_context(role, context)
+```
+
+### 4. 数据验证
+
+```python
+def validate_context(context: dict) -> bool:
+    """验证上下文数据
+
+    Args:
+        context: 上下文数据
+
+    Returns:
+        是否有效
+    """
+    # 1. 加载验证规则
+    rules = load_validation_rules()
+
+    # 2. 检查必填字段
+    for field in rules['required_fields']:
+        if field not in context:
+            log_error(f"缺少必填字段: {field}")
+            return False
+
+    # 3. 验证字段类型
+    for field, field_type in rules['field_types'].items():
+        if field in context:
+            if not validate_field_type(context[field], field_type):
+                log_error(f"字段类型错误: {field}")
+                return False
+
+    # 4. 应用自定义验证规则
+    for field, rule in rules['validation_rules'].items():
+        if field in context:
+            if not apply_validation_rule(context[field], rule):
+                log_error(f"字段验证失败: {field}")
+                return False
+
+    return True
+```
+
+## 错误处理
+
+1. **数据错误**：
+   - 记录详细错误信息
+   - 尝试自动修复
+   - 提供手动修复建议
+
+2. **文件错误**：
+   - 保持原文件备份
+   - 回滚到最近的有效版本
+   - 记录文件操作日志
+
+3. **并发访问**：
+   - 使用文件锁机制
+   - 实现乐观锁控制
+   - 处理冲突合并
+
+## 最佳实践
+
+1. **定期验证**：
+   - 每次会话开始时验证上下文
+   - 定期检查备份完整性
+   - 监控数据一致性
+
+2. **增量更新**：
+   - 只更新变化的部分
+   - 保留历史记录
+   - 支持回滚操作
+
+3. **性能优化**：
+   - 使用缓存机制
+   - 异步备份处理
+   - 压缩历史数据
+
+## 使用示例
+
+1. **保存当前上下文**：
+```python
+context_manager.save_context(role="ex", context={
+    "role": "ex",
+    "version": "1.0",
+    "last_updated": "2025-03-25T12:40:00",
+    "current_task": {
+        "name": "实现上下文管理机制",
+        "progress": 30
+    }
+})
+```
+
+2. **加载上下文**：
+```python
+context = context_manager.load_context(role="ex")
+if context:
+    print(f"当前任务: {context['current_task']['name']}")
+```
+
+3. **创建备份**：
+```python
+if context_manager.create_backup(role="ex"):
+    print("备份创建成功")
+```
+
+## 注意事项
+
+1. 确保文件操作的原子性
+2. 定期清理过期备份文件
+3. 监控磁盘空间使用情况
+4. 保护敏感数据安全
+5. 定期验证备份可用性

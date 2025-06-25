@@ -1,0 +1,440 @@
+---
+description: "角色管理：统一管理角色切换和互斥机制"
+globs:
+alwaysApply: false
+---
+
+# 角色管理器
+
+角色管理器负责协调不同角色的激活、切换和互斥，以及管理角色相关的上下文和状态信息。
+
+## 角色定义
+
+本项目定义了以下核心角色：
+
+1. **pm** - 产品经理：负责需求分析、功能规划和用户体验设计
+2. **ar** - 架构师：负责技术架构设计和关键技术决策
+3. **dv** - 开发工程师：负责代码实现和技术方案设计
+4. **qa** - 测试工程师：负责测试用例设计和质量保证
+5. **co** - 项目教练：负责项目规划、进度把控和团队协调
+6. **ex** - 探索者：负责探索、设计和完善多角色协作机制，**负责维护规则索引文件(.cursor/rules.md)**
+7. **sre** - 系统运维专家：专注于系统工具、终端命令和软件安装与故障排除
+
+## 角色互斥
+
+为避免角色冲突和认知混淆，以下规则适用于角色切换：
+
+1. 同一时刻只能有一个角色处于激活状态
+2. 切换角色时，当前角色将自动停用
+3. 角色切换需要明确的激活命令
+
+## 角色激活
+
+通过以下命令激活特定角色：
+
+- `/pm` - 激活产品经理角色
+- `/ar` - 激活架构师角色
+- `/dv` - 激活开发工程师角色
+- `/qa` - 激活测试工程师角色
+- `/co` - 激活项目教练角色
+- `/ex` - 激活探索者角色
+- `/sre` - 激活系统运维专家角色
+
+也可以使用完整命令：
+
+- `/role pm` - 激活产品经理角色
+- `/role ar` - 激活架构师角色
+- 等等...
+
+## 角色切换流程
+
+1. **保存当前角色状态**：
+   - 将当前角色的上下文保存到 `.cursor/contexts/{role}_context.json`
+   - 将当前角色的临时状态保存到 `.cursor/states/{role}_state.json`
+   - 如有必要，生成会话总结到 `.cursor/summaries/{role}_{timestamp}.md`
+   - 更新当前任务进度和会话持续时间
+
+2. **停用当前角色**：
+   - 重置Git作者身份设置，恢复到用户身份
+   - 清理当前角色的临时资源和运行状态
+   - 记录角色停用时间和持续时间
+   - 更新角色会话历史记录
+
+3. **激活新角色**：
+   - 加载新角色的配置和规则
+   - 恢复新角色的上下文和状态
+   - 设置Git作者身份为新角色智能体
+   - 执行新角色的初始化操作
+   - 显示未完成的任务和当前进度
+
+4. **执行会话初始化**：
+   - 查找角色对应的最新会话总结文件（`docs/agent-guides/{role}-guide-*.md`）
+   - 读取会话总结内容，特别关注"错误防范"和"待办事项"部分
+   - 检查相关文件变更，识别用户和智能体的修改
+   - 向用户提供会话连续性信息，包括上次工作进度和待处理事项
+   - 如果找不到上次会话记录，提示用户并请求基本上下文信息
+
+5. **文件变更检查**：
+   - 检查自上次角色激活以来的相关文件变更
+   - 区分用户变更和智能体变更
+   - 提供变更通知和相关文件列表
+   - 建议角色关注的重点变更
+
+## 角色状态保存
+
+每个角色的状态信息包括：
+
+1. **上下文信息**：
+   - 角色相关的背景知识
+   - 当前处理的任务和进度
+   - 角色特定的参数和偏好
+
+2. **临时状态**：
+   - 会话中产生的临时数据
+   - 未完成的任务和思路
+   - 需要在下次激活时恢复的状态
+
+3. **会话总结**：
+   - 角色完成的主要工作
+   - 产生的关键见解和决策
+   - 遗留问题和后续工作建议
+
+## 变更监控机制
+
+角色管理器集成了基于Git的文件变更监控机制，以确保角色了解相关文件的最新变化：
+
+1. **变更检测**：
+   - 利用Git仓库跟踪文件变更
+   - 监控已提交、未暂存和未跟踪的变更
+   - 识别修改、添加、删除、重命名等操作
+   - 区分用户变更和智能体变更来源
+
+2. **智能体身份管理**：
+   - 每个角色有独特的Git作者身份
+   - 角色激活时自动设置Git作者信息
+   - 角色停用时恢复用户Git作者信息
+   - 通过邮箱后缀(@cursor.agent)标识智能体
+
+3. **变更通知**：
+   - 角色激活时检查自上次激活以来的变更
+   - 筛选与当前角色相关的变更
+   - 按用户变更和智能体变更分组显示
+   - 提供变更摘要和建议操作
+
+4. **变更响应**：
+   - 根据变更类型提供适当的响应建议
+   - 更新角色的知识库和行为模式
+   - 调整角色的工作重点和优先级
+
+## 角色命令处理
+
+当检测到角色切换命令时，角色管理器执行以下操作：
+
+1. 识别目标角色
+2. 停用当前角色（如果有），保存状态
+3. 激活目标角色，恢复状态
+4. 提供角色切换确认、变更通知和任务提醒
+
+当检测到状态管理命令时，执行以下操作：
+
+- `/save-state [role]` - 保存指定角色的当前状态
+- `/load-state [role]` - 加载指定角色的状态
+- `/show-state [role]` - 显示角色状态摘要
+- `/clear-state [role]` - 清除角色状态（需确认）
+
+## 示例响应
+
+当角色被激活时，使用类似以下格式确认：
+
+```
+✅ 已切换到{角色名称}角色。
+
+📋 角色概述：
+- 职责：{角色主要职责}
+- 专长：{角色专长领域}
+- 关注点：{角色关注重点}
+
+📝 当前状态：
+- 任务：{当前任务}（进度：{进度百分比}%）
+- 未完成项：{未完成任务列表}
+- 关注文件：{当前关注的文件列表}
+
+⚠️ 角色激活通知：自上次激活以来，有{数量}个相关文件发生变更：
+
+【用户变更】({用户变更数量}项):
+- {时间戳} [{变更类型}] {文件路径} (commit: {提交ID})
+- ...
+
+【智能体变更】({智能体变更数量}项):
+- {时间戳} [{变更类型}] {文件路径} (由 {角色名称} 修改, commit: {提交ID})
+- ...
+
+我现在以{角色名称}的身份为您提供帮助。有什么我可以协助的吗？
+```
+
+## Git变更检测实现
+
+角色管理器使用GitPython库实现文件变更检测和智能体身份管理：
+
+```python
+# 角色激活时的变更检测和身份管理示例
+from git import Repo
+import os
+import json
+from datetime import datetime
+
+def activate_role(role):
+    """激活角色并设置Git作者身份
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        角色激活状态和变更通知
+    """
+    # 设置Git作者身份
+    set_git_author_identity(role)
+
+    # 获取相关变更
+    changes = get_role_changes(role)
+
+    # 更新角色激活时间
+    update_activation_time(role)
+
+    return format_role_activation(role, changes)
+
+def deactivate_role(role):
+    """停用角色并重置Git作者身份
+
+    Args:
+        role: 角色代码
+    """
+    # 重置Git作者身份
+    reset_git_author_identity()
+
+    # 保存角色状态
+    save_role_state(role)
+
+def set_git_author_identity(role):
+    """设置Git作者身份为指定角色
+
+    Args:
+        role: 角色代码
+    """
+    role_display_names = {
+        'pm': '产品经理',
+        'ar': '架构师',
+        'dv': '开发工程师',
+        'qa': '测试工程师',
+        'co': '项目教练',
+        'ex': '探索者',
+        'sre': '系统运维专家'
+    }
+
+    display_name = role_display_names.get(role, role.upper())
+    email = f"{role}@cursor.agent"
+
+    os.environ['GIT_AUTHOR_NAME'] = display_name
+    os.environ['GIT_AUTHOR_EMAIL'] = email
+
+    # 注意：不改变提交者(committer)，保持为用户身份
+
+def reset_git_author_identity():
+    """重置Git作者身份环境变量"""
+    if 'GIT_AUTHOR_NAME' in os.environ:
+        del os.environ['GIT_AUTHOR_NAME']
+    if 'GIT_AUTHOR_EMAIL' in os.environ:
+        del os.environ['GIT_AUTHOR_EMAIL']
+
+def get_role_changes(role):
+    """获取角色相关的文件变更
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        变更列表，区分用户变更和智能体变更
+    """
+    repo = Repo('.')  # 获取当前仓库
+
+    # 获取角色上次激活时间
+    last_time = get_last_activation_time(role)
+    if not last_time:
+        return {"user_changes": [], "agent_changes": []}
+
+    # 转换时间格式
+    last_time = datetime.fromisoformat(last_time)
+
+    # 初始化变更列表
+    user_changes = []
+    agent_changes = []
+
+    # 获取未暂存变更
+    for item in repo.index.diff(None):
+        if is_file_related_to_role(item.a_path, role):
+            user_changes.append({
+                'action': get_change_type(item.change_type),
+                'file_path': item.a_path,
+                'timestamp': datetime.now().isoformat(),
+                'commit_id': 'unstaged'
+            })
+
+    # 获取未跟踪文件
+    for file_path in repo.untracked_files:
+        if is_file_related_to_role(file_path, role):
+            user_changes.append({
+                'action': 'untracked',
+                'file_path': file_path,
+                'timestamp': datetime.now().isoformat(),
+                'commit_id': 'untracked'
+            })
+
+    # 获取已提交的变更
+    for commit in repo.iter_commits():
+        # 如果提交时间早于上次激活时间，则停止
+        commit_time = datetime.fromtimestamp(commit.committed_date)
+        if commit_time < last_time:
+            break
+
+        # 获取作者信息
+        author_name = commit.author.name
+        author_email = commit.author.email
+        is_agent = is_agent_author(author_email)
+
+        # 获取本次提交的所有变更
+        if commit.parents:
+            for diff_item in commit.diff(commit.parents[0]):
+                file_path = diff_item.a_path or diff_item.b_path
+                if is_file_related_to_role(file_path, role):
+                    change = {
+                        'action': get_change_type(diff_item.change_type),
+                        'file_path': file_path,
+                        'timestamp': datetime.fromtimestamp(commit.committed_date).isoformat(),
+                        'commit_id': commit.hexsha,
+                        'author_name': author_name,
+                        'author_email': author_email,
+                        'role': get_role_from_author(author_email) if is_agent else None
+                    }
+
+                    if is_agent:
+                        agent_changes.append(change)
+                    else:
+                        user_changes.append(change)
+
+    return {
+        "user_changes": user_changes,
+        "agent_changes": agent_changes
+    }
+
+def is_agent_author(author_email):
+    """判断作者是否为智能体
+
+    Args:
+        author_email: 作者邮箱
+
+    Returns:
+        如果是智能体则返回True，否则返回False
+    """
+    return author_email is not None and author_email.endswith('@cursor.agent')
+
+def get_role_from_author(author_email):
+    """从作者邮箱获取角色代码
+
+    Args:
+        author_email: 作者邮箱
+
+    Returns:
+        角色代码，如'pm'、'ar'等，如果不是有效的智能体邮箱则返回None
+    """
+    if not is_agent_author(author_email):
+        return None
+
+    role = author_email.split('@')[0].lower()
+    return role if role in ['pm', 'ar', 'dv', 'qa', 'co', 'ex', 'sre'] else None
+```
+
+## 角色文件关联
+
+各角色关注的文件路径模式：
+
+- **pm**：`docs/requirements/.*`
+- **ar**：`docs/architecture/.*`
+- **dv**：`docs/technical/.*`
+- **qa**：`docs/testing/.*`
+- **co**：`docs/project/.*`
+- **ex**：`docs/exploration/.*`和`.cursor/rules/.*\.mdc`
+
+## 变更优先级
+
+变更按以下优先级进行处理和展示：
+
+1. 关键配置文件变更（如角色定义、规则文件）
+2. 当前任务相关文件变更
+3. 角色域内的其他文件变更
+4. 与角色相关但域外的文件变更
+
+## 实施注意事项
+
+1. 确保系统已安装GitPython库
+2. 部署前测试Git仓库访问权限
+3. 处理可能的Git操作异常
+4. 针对大型仓库优化性能
+5. Git作者身份设置不影响提交者信息
+6. 使用环境变量设置Git作者，不修改全局配置
+
+## 角色引导提示
+
+当角色被激活时，提供以下引导提示：
+
+```
+已切换到【{角色名称}】角色。
+
+当前角色简介：
+- 职责：{角色职责描述}
+- 专长：{角色专长列表}
+- 上次使用：{上次使用时间}
+
+您可以通过输入"/{角色代号}-help"查看该角色的详细帮助。
+```
+
+## 角色初始化和退出
+
+角色的初始化和退出过程如下：
+
+1. **初始化过程**：
+   - 加载角色配置文件(`.cursor/rules/{role_code}.mdc`)
+   - 恢复上下文文件(`.cursor/contexts/{role_code}_context.json`)
+   - 加载状态信息(`.cursor/states/{role_code}_state.json`)
+   - 设置Git作者身份为当前角色
+   - 预热相关文档索引(`docs/{role_domain}/`)
+   - 设置角色特定的回复风格和知识库
+   - 显示未完成任务和当前进度
+
+2. **退出过程**：
+   - 保存当前工作上下文(`.cursor/contexts/{role_code}_context.json`)
+   - 更新状态文件(`.cursor/states/{role_code}_state.json`)
+   - 生成角色工作总结(`.cursor/summaries/{role_code}_{YYYY-MM-DD-HH-mm-ss}.md`)
+   - 重置Git作者身份环境变量
+   - 清理临时资源和内存占用
+   - 更新会话历史记录
+
+## 与其他规则的协作
+
+本规则与以下规则协同工作：
+
+1. **会话初始化规则**：
+   - 在会话开始时，角色管理器根据初始化信息选择默认角色
+   - 如果用户未指定角色，默认使用上次会话的角色或ex角色
+
+2. **会话总结规则**：
+   - 在会话总结中记录当前活跃角色和角色使用情况
+   - 为下次会话保存角色状态信息
+
+3. **各角色定义规则**：
+   - 角色管理器负责角色激活和停用的控制
+   - 具体角色行为由各角色定义规则实现
+
+4. **角色状态管理规则**：
+   - 负责状态的保存和恢复操作
+   - 维护角色状态数据的一致性和完整性
+   - 提供状态备份和恢复机制

@@ -1,0 +1,39 @@
+{
+  "role": "sre",
+  "activation_count": 0,
+  "total_session_time": 0,
+  "last_active": "2024-03-26T15:00:00",
+  "tasks": [
+    {
+      "id": "sre-task-001",
+      "description": "初始化系统运维专家角色",
+      "status": "completed",
+      "created_at": "2024-03-26T15:00:00",
+      "completed_at": "2024-03-26T15:00:00"
+    }
+  ],
+  "pending_tasks": [
+    {
+      "id": "sre-task-002",
+      "description": "创建MacOS常用命令手册",
+      "status": "pending",
+      "created_at": "2024-03-26T15:00:00"
+    },
+    {
+      "id": "sre-task-003",
+      "description": "创建Homebrew包管理指南",
+      "status": "pending",
+      "created_at": "2024-03-26T15:00:00"
+    }
+  ],
+  "focus_areas": [
+    "MacOS系统管理",
+    "终端命令使用",
+    "系统故障排除"
+  ],
+  "environment": {
+    "os": "MacOS",
+    "shell": "zsh",
+    "package_manager": "Homebrew"
+  }
+} 

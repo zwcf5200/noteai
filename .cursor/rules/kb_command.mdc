@@ -1,0 +1,70 @@
+---
+description: 本规则用于处理用户在对话中使用的知识库生成命令，如 `/kb`、`/知识库`、`/knowledge` 等。当检测到这些命令时，系统会触发知识库文档生成流程。
+globs:
+alwaysApply: false
+---
+# 知识库命令处理规则
+
+## 规则说明
+本规则用于处理用户在对话中使用的知识库生成命令，如 `/kb`、`/知识库`、`/knowledge` 等。当检测到这些命令时，系统会触发知识库文档生成流程。
+
+## 触发条件
+当用户消息中包含以下任一命令模式时触发：
+- `/kb [参数]`
+- `/KB [参数]`
+- `/知识库 [参数]`
+- `/knowledge [参数]`
+
+## 处理流程
+1. 导入 `.cursor/rules/kb_command_integration.py` 中的 `kb_command_handler` 函数
+2. 调用 `kb_command_handler(user_message, conversation_history)` 处理命令
+3. 返回处理结果
+
+## 代码实现
+```python
+import os
+import sys
+import importlib.util
+
+def process_kb_command(user_message, conversation_history):
+    """处理知识库命令"""
+    # 获取当前工作目录
+    cwd = os.getcwd()
+
+    # 构建kb_command_integration.py的路径
+    integration_path = os.path.join(cwd, '.cursor', 'rules', 'kb_command_integration.py')
+
+    # 检查文件是否存在
+    if not os.path.exists(integration_path):
+        return "知识库命令处理模块未找到，请确保 `.cursor/rules/kb_command_integration.py` 文件存在。"
+
+    # 动态加载模块
+    try:
+        spec = importlib.util.spec_from_file_location("kb_command_integration", integration_path)
+        kb_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(kb_module)
+
+        # 调用知识库命令处理函数
+        if hasattr(kb_module, 'kb_command_handler'):
+            return kb_module.kb_command_handler(user_message, conversation_history)
+        else:
+            return "知识库命令处理函数未找到，请检查模块实现。"
+    except Exception as e:
+        return f"处理知识库命令时发生错误: {str(e)}"
+
+# 测试代码
+if __name__ == "__main__":
+    test_message = "/kb topic 测试知识库"
+    test_history = ["用户: 我需要一个知识库", "助手: 我可以帮您创建知识库"]
+    print(process_kb_command(test_message, test_history))
+```
+
+## 使用说明
+在对话中，用户可以使用以下命令触发知识库生成：
+
+1. 基本命令：`/kb` - 使用标准模板生成知识库
+2. 简化版：`/kb simple` - 只生成主要文档
+3. 完整版：`/kb full` - 生成包含示例和FAQ的完整知识库
+4. 指定主题：`/kb topic 主题名称` - 使用指定主题名称生成知识库
+
+系统会根据当前激活的角色选择对应的模板，并根据对话内容生成适当的知识库文档。

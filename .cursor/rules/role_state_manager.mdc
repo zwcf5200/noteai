@@ -1,0 +1,506 @@
+---
+description: "角色状态管理：负责角色状态的保存、恢复和管理"
+globs:
+alwaysApply: false
+---
+
+# 角色状态管理器
+
+负责管理角色状态的保存、恢复和维护，与上下文管理器协同工作，确保角色切换的连续性和可靠性。
+
+## 核心功能
+
+1. **状态管理**：
+   - 保存角色运行状态
+   - 恢复角色历史状态
+   - 维护状态一致性
+   - 处理状态冲突
+
+2. **上下文集成**：
+   - 与上下文管理器协同工作
+   - 同步状态和上下文数据
+   - 确保数据一致性
+   - 处理同步异常
+
+3. **会话跟踪**：
+   - 记录会话状态变化
+   - 维护会话历史记录
+   - 提供会话恢复点
+   - 支持会话回滚
+
+## 状态文件结构
+
+1. **角色状态文件** (`.cursor/states/{role}_state.json`)：
+```json
+{
+  "role": "角色代码",
+  "role_display_name": "角色显示名称",
+  "last_activation_time": "最后激活时间",
+  "last_deactivation_time": "最后停用时间",
+  "session_duration": "会话持续时间(秒)",
+  "context": {
+    "current_task": "当前任务描述",
+    "focus_area": "关注领域",
+    "task_progress": "任务进度",
+    "knowledge_base": ["相关知识"],
+    "preferences": {
+      "detail_level": "详细程度",
+      "code_example_format": "代码示例格式"
+    }
+  },
+  "work_state": {
+    "incomplete_tasks": ["未完成任务列表"],
+    "pending_ideas": ["待处理想法"],
+    "current_files": ["当前关注的文件"],
+    "notes": "工作笔记"
+  },
+  "git_info": {
+    "last_commit_sha": "最后提交的SHA",
+    "tracked_files": ["跟踪的文件列表"],
+    "recent_changes": [
+      {
+        "file": "文件路径",
+        "action": "变更类型",
+        "timestamp": "时间戳"
+      }
+    ]
+  },
+  "session_history": [
+    {
+      "session_id": "会话ID",
+      "start_time": "开始时间",
+      "end_time": "结束时间",
+      "summary_file": "总结文件路径",
+      "major_achievements": ["主要成果"]
+    }
+  ],
+  "metadata": {
+    "version": "状态文件版本",
+    "created_at": "创建时间",
+    "updated_at": "更新时间"
+  }
+}
+```
+
+## 操作流程
+
+### 1. 保存状态
+
+```python
+def save_state(role: str, state: dict) -> bool:
+    """保存角色状态
+
+    Args:
+        role: 角色代码
+        state: 状态数据
+
+    Returns:
+        保存是否成功
+    """
+    # 1. 验证状态数据
+    if not validate_state(state):
+        return False
+
+    # 2. 同步上下文数据
+    context_manager.sync_context(role, state['context'])
+
+    # 3. 创建备份
+    create_backup(role)
+
+    # 4. 保存文件
+    file_path = f".cursor/states/{role}_state.json"
+    try:
+        with open(file_path, 'w') as f:
+            json.dump(state, f, indent=2)
+        return True
+    except Exception as e:
+        log_error(f"保存状态失败: {str(e)}")
+        restore_from_backup(role)
+        return False
+```
+
+### 2. 恢复状态
+
+```python
+def load_state(role: str) -> dict:
+    """加载角色状态
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        状态数据或空字典
+    """
+    # 1. 尝试加载状态文件
+    file_path = f".cursor/states/{role}_state.json"
+    try:
+        with open(file_path, 'r') as f:
+            state = json.load(f)
+
+        # 2. 验证状态数据
+        if validate_state(state):
+            # 3. 同步上下文数据
+            context = context_manager.load_context(role)
+            state['context'] = merge_context(state['context'], context)
+            return state
+
+        # 4. 尝试修复
+        fixed_state = fix_state(state)
+        if fixed_state:
+            return fixed_state
+
+    except FileNotFoundError:
+        # 5. 尝试从备份恢复
+        backup_state = load_from_backup(role)
+        if backup_state:
+            return backup_state
+
+    # 6. 创建新状态
+    return create_new_state(role)
+```
+
+### 3. 状态同步
+
+```python
+def sync_with_context(role: str) -> bool:
+    """同步状态和上下文数据
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        同步是否成功
+    """
+    try:
+        # 1. 加载状态和上下文
+        state = load_state(role)
+        context = context_manager.load_context(role)
+
+        # 2. 合并数据
+        merged_context = merge_context(state['context'], context)
+        state['context'] = merged_context
+
+        # 3. 保存更新后的数据
+        save_state(role, state)
+        context_manager.save_context(role, merged_context)
+
+        return True
+    except Exception as e:
+        log_error(f"状态同步失败: {str(e)}")
+        return False
+```
+
+### 4. 会话管理
+
+```python
+def start_session(role: str) -> str:
+    """开始新会话
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        session_id: 会话ID
+    """
+    try:
+        # 获取ISO格式时间用于状态记录
+        current_time = run_terminal_cmd("date --iso-8601=seconds").strip()
+        if not current_time.strip():
+            raise ValueError("Empty timestamp")
+
+        # 验证时间格式
+        if not validate_iso_time(current_time):
+            raise ValueError(f"Invalid ISO time format: {current_time}")
+    except Exception as e:
+        log_error(f"获取时间失败: {str(e)}")
+        # 使用备用时间格式
+        current_time = datetime.now().isoformat()
+
+    session_id = generate_session_id(role)
+    state = load_state(role)
+
+    # 更新状态
+    state['last_activation_time'] = current_time
+    state['session_history'].append({
+        'session_id': session_id,
+        'start_time': current_time,
+        'end_time': None,
+        'summary_file': None
+    })
+
+    save_state(role, state)
+    return session_id
+
+def end_session(role: str, session_id: str, summary_file: str = None) -> bool:
+    """结束会话
+
+    Args:
+        role: 角色代码
+        session_id: 会话ID
+        summary_file: 总结文件路径
+
+    Returns:
+        bool: 是否成功结束会话
+    """
+    try:
+        # 获取ISO格式时间用于状态记录
+        current_time = run_terminal_cmd("date --iso-8601=seconds").strip()
+        if not current_time.strip():
+            raise ValueError("Empty timestamp")
+
+        # 验证时间格式
+        if not validate_iso_time(current_time):
+            raise ValueError(f"Invalid ISO time format: {current_time}")
+    except Exception as e:
+        log_error(f"获取时间失败: {str(e)}")
+        # 使用备用时间格式
+        current_time = datetime.now().isoformat()
+
+    state = load_state(role)
+    state['last_deactivation_time'] = current_time
+
+    # 更新会话历史
+    for session in state['session_history']:
+        if session['session_id'] == session_id:
+            session['end_time'] = current_time
+            session['summary_file'] = summary_file
+            break
+
+    save_state(role, state)
+    return True
+
+def create_backup(role: str) -> str:
+    """创建状态备份
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        str: 备份文件路径
+    """
+    try:
+        # 获取文件名时间戳
+        timestamp = run_terminal_cmd("date '+%Y-%m-%d-%H-%M-%S'").strip()
+        if not timestamp.strip():
+            raise ValueError("Empty timestamp")
+
+        # 验证时间戳格式
+        if not validate_filename_timestamp(timestamp):
+            raise ValueError(f"Invalid timestamp format: {timestamp}")
+    except Exception as e:
+        log_error(f"获取时间戳失败: {str(e)}")
+        # 使用备用时间戳格式
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
+    backup_file = f".cursor/backups/states/{role}-backup-{timestamp}.json"
+
+    # 执行备份操作
+    shutil.copy2(get_state_file_path(role), backup_file)
+    return backup_file
+
+def display_state(role: str) -> str:
+    """显示角色状态
+
+    Args:
+        role: 角色代码
+
+    Returns:
+        str: 格式化的状态信息
+    """
+    try:
+        # 获取显示时间格式
+        current_time = run_terminal_cmd("date '+%Y-%m-%d %H:%M:%S'").strip()
+        if not current_time.strip():
+            raise ValueError("Empty timestamp")
+
+        # 验证时间格式
+        if not validate_display_time(current_time):
+            raise ValueError(f"Invalid display time format: {current_time}")
+    except Exception as e:
+        log_error(f"获取时间失败: {str(e)}")
+        # 使用备用时间格式
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    state = load_state(role)
+    return f"""## 角色状态：{role}
+
+当前时间：{current_time}
+上次激活：{format_iso_time(state.get('last_activation_time', 'N/A'))}
+累计时长：{calculate_duration(state)}
+
+当前任务：{state.get('current_task', 'N/A')}
+任务进度：{state.get('progress', 0)}%
+
+未完成任务：
+{format_task_list(state.get('incomplete_tasks', []))}
+
+最近会话：
+{format_session_history(state.get('session_history', []))}
+"""
+```
+
+## 错误处理
+
+1. **状态错误**：
+   - 记录错误详情
+   - 尝试自动修复
+   - 回滚到上一个有效状态
+   - 通知用户错误情况
+
+2. **同步错误**：
+   - 保持数据一致性
+   - 解决数据冲突
+   - 记录同步失败原因
+   - 提供手动同步选项
+
+3. **会话错误**：
+   - 保护会话数据
+   - 提供会话恢复机制
+   - 记录会话异常
+   - 支持会话重新连接
+
+## 最佳实践
+
+1. **状态管理**：
+   - 定期验证状态完整性
+   - 实现增量状态更新
+   - 优化状态存储结构
+   - 清理过期状态数据
+
+2. **数据同步**：
+   - 使用乐观锁控制
+   - 实现异步同步机制
+   - 提供冲突解决策略
+   - 维护同步日志
+
+3. **性能优化**：
+   - 使用内存缓存
+   - 实现延迟写入
+   - 压缩历史数据
+   - 优化文件IO操作
+
+## 使用示例
+
+1. **开始新会话**：
+```python
+session_id = role_state_manager.start_session(role="ex")
+print(f"会话已开始: {session_id}")
+```
+
+2. **结束会话**：
+```python
+summary_file = "docs/agent-guides/ex-guide-2025-03-25-12-40-00.md"
+role_state_manager.end_session(role="ex", session_id=session_id, summary_file=summary_file)
+```
+
+3. **同步状态**：
+```python
+if role_state_manager.sync_with_context(role="ex"):
+    print("状态同步成功")
+```
+
+## 注意事项
+
+1. 确保状态文件的原子性操作
+2. 定期验证状态和上下文的一致性
+3. 实现可靠的备份和恢复机制
+4. 优化大规模状态数据的处理
+5. 保护敏感状态信息的安全
+
+## 角色状态显示
+
+当用户请求查看状态时，显示以下格式的信息：
+
+```
+## 角色状态：{角色名称}
+
+当前任务：{任务描述} (进度：{进度}%)
+开始时间：{开始时间}
+预计完成：{预计完成时间}
+
+未完成任务：
+{任务列表}
+
+关注文件：
+{文件列表}
+
+最近决策：
+{决策列表}
+
+上次会话：{时间}
+总会话时间：{累计时间}
+会话总数：{会话次数}
+```
+
+## 实施注意事项
+
+1. 确保状态文件操作在规则执行上下文中有效
+2. 处理文件访问权限问题
+3. 考虑状态数据的安全性和隐私
+4. 确保备份策略有效且不占用过多空间
+5. 处理跨平台文件路径差异
+6. 定期验证状态保存和恢复的完整性
+7. 实现优雅的错误处理和用户通知机制
+8. 确保不同角色间的状态隔离
+
+## 状态数据结构
+
+角色状态使用以下JSON结构：
+
+```json
+{
+  "role": "角色代码",
+  "role_display_name": "角色显示名称",
+  "last_activation_time": "激活时间",
+  "last_deactivation_time": "停用时间",
+  "session_duration": 会话持续时间(秒),
+  "context": {
+    "current_task": "当前任务",
+    "focus_area": "关注领域",
+    "task_progress": 进度百分比,
+    "knowledge_base": ["知识条目1", "知识条目2"],
+    "preferences": {
+      "偏好键": "偏好值"
+    }
+  },
+  "work_state": {
+    "incomplete_tasks": ["未完成任务1", "未完成任务2"],
+    "pending_ideas": ["待处理想法1", "待处理想法2"],
+    "current_files": ["当前关注文件1", "当前关注文件2"],
+    "notes": "工作笔记"
+  },
+  "git_info": {
+    "last_commit_sha": "最后提交的SHA",
+    "tracked_files": ["跟踪文件1", "跟踪文件2"],
+    "recent_changes": [
+      {
+        "file": "文件路径",
+        "action": "变更类型",
+        "timestamp": "变更时间"
+      }
+    ]
+  },
+  "session_history": [
+    {
+      "session_id": "会话ID",
+      "start_time": "开始时间",
+      "end_time": "结束时间",
+      "summary_file": "总结文件路径",
+      "major_achievements": ["主要成果1", "主要成果2"]
+    }
+  ],
+  "metadata": {
+    "version": "版本号",
+    "created_at": "创建时间",
+    "updated_at": "更新时间"
+  }
+}
+```
+
+## 后续开发计划
+
+1. 实现状态数据的压缩和加密
+2. 添加状态分析和可视化功能
+3. 实现角色状态的导入和导出
+4. 开发基于状态的角色性能分析工具
+5. 增强与其他规则系统的集成

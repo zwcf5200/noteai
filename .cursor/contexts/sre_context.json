@@ -1,0 +1,18 @@
+{
+  "role": "sre",
+  "last_activation_time": "2024-03-26T15:00:00",
+  "current_task": "系统配置与维护",
+  "active_files": [
+    "docs/system/commands/homebrew_guide.md",
+    ".cursor/rules/sre.mdc"
+  ],
+  "background_knowledge": {
+    "key_concepts": [
+      "MacOS系统管理",
+      "Homebrew包管理",
+      "终端命令",
+      "系统故障排除"
+    ]
+  },
+  "notes": "系统运维专家角色初始化完成，已设置默认环境为MacOS，默认shell为zsh，默认包管理器为Homebrew。"
+} 

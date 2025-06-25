@@ -1,0 +1,115 @@
+---
+description: Cursor工作流程设计的最佳实践
+globs: ["**/*process*.py", "**/*workflow*.py", "**/*flow*.py"]
+alwaysApply: true
+---
+
+# 工作流程设计原则
+
+设计Cursor工作流时，应根据任务复杂性和智能体间协作关系选择合适的流程类型和结构。
+
+## 工作流类型选择
+
+1. **Sequential流程**：
+   - 适用于任务步骤明确、线性的场景
+   - 智能体按预定顺序执行任务
+   - 适合简单到中等复杂度的任务
+   - 例如：数据收集 → 数据分析 → 报告生成
+
+2. **Hierarchical流程**：
+   - 适用于复杂、需要协调的任务
+   - 设置管理者角色协调其他智能体
+   - 支持动态任务分配和并行执行
+   - 例如：项目经理协调开发团队的多个任务
+
+## manager_llm参数设置
+
+1. **何时使用**：
+   - 在Hierarchical流程中必须设置
+   - 需要高级别决策和任务协调时
+   - 任务目标或步骤不确定时
+
+2. **推荐设置**：
+   - 使用高级模型如GPT-4或Claude 3 Opus
+   - 设置较高的max_tokens参数
+   - 考虑使用较低的temperature (0.1-0.3)
+
+## 任务依赖管理
+
+1. **显式依赖**：
+   - 明确定义任务间的依赖关系
+   - 使用task.with_dependencies([task1, task2])设置
+   - 确保依赖任务的输出满足后续任务需求
+
+2. **输入/输出管理**：
+   - 明确定义每个任务的输入和期望输出
+   - 使用detailed_description说明任务处理步骤
+   - 确保输出格式符合下游任务需求
+
+## 最佳实践代码示例
+
+```python
+from cursor import Crew, Agent, Task, Process
+
+# 创建智能体
+manager = Agent(
+    role="Project Manager",
+    goal="Coordinate the development team and ensure project success",
+    backstory="You are an experienced project manager with 10 years in software development. You excel at breaking down complex projects into manageable tasks.",
+    verbose=True
+)
+
+researcher = Agent(
+    role="Market Researcher",
+    goal="Gather comprehensive market data and identify key trends",
+    backstory="With expertise in data analysis and market research methodologies, you specialize in uncovering valuable insights from various data sources.",
+    verbose=True
+)
+
+developer = Agent(
+    role="Senior Developer",
+    goal="Implement efficient and maintainable code based on requirements",
+    backstory="You're a skilled developer with strong problem-solving abilities and extensive experience in building scalable applications.",
+    verbose=True
+)
+
+# 创建任务
+research_task = Task(
+    description="Research the current market landscape for our product",
+    agent=researcher,
+    expected_output="A comprehensive report on market trends, competitor analysis, and potential opportunities",
+    detailed_description="""
+    1. Identify key competitors in the market
+    2. Analyze their strengths and weaknesses
+    3. Identify market trends and opportunities
+    4. Compile findings into a structured report
+    """
+)
+
+development_task = Task(
+    description="Develop the core features based on research findings",
+    agent=developer,
+    expected_output="Working implementation of core features with documentation",
+    detailed_description="""
+    1. Review the market research report
+    2. Design the architecture for the core features
+    3. Implement the features with proper error handling
+    4. Document the implementation and usage
+    """,
+    dependencies=[research_task]  # 显式定义依赖关系
+)
+
+# 创建Crew并设置工作流
+project_crew = Crew(
+    agents=[manager, researcher, developer],
+    tasks=[research_task, development_task],
+    process=Process.hierarchical,  # 复杂项目使用分层流程
+    manager_llm="gpt-4",  # 为管理者设置高级模型
+    verbose=2
+)
+
+# 执行工作流
+result = project_crew.kickoff()
+```
+
+在设计Cursor工作流时，应根据任务复杂性和智能体协作需求选择适当的流程类型，并确保正确配置任务依赖关系和管理参数。

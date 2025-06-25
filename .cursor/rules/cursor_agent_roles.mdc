@@ -1,0 +1,52 @@
+---
+description: 在创建Cursor智能体时，每个智能体都应该有明确的角色(role)、目标(goal)和背景故事(backstory)定义。
+globs:
+alwaysApply: false
+---
+
+# 多智能体角色定义
+
+在创建Cursor智能体时，每个智能体都应该有明确的角色(role)、目标(goal)和背景故事(backstory)定义。
+
+## 角色定义要求
+
+1. **角色(Role)**：
+   - 具体且专业化的职业或专家身份
+   - 清晰表述智能体的专业领域
+   - 示例：`"Senior Data Scientist specialized in anomaly detection"`
+
+2. **目标(Goal)**：
+   - 可量化、明确的目标描述
+   - 包含具体的交付成果
+   - 避免模糊或过于宽泛的表述
+   - 示例：`"Analyze the provided time-series data to identify and characterize anomalies, delivering a comprehensive report with visualizations"`
+
+3. **背景故事(Backstory)**：
+   - 强化专业性和可信度
+   - 包含相关经验、专长和成就
+   - 应当与角色和目标一致
+   - 示例：`"With over 15 years of experience in statistical analysis and machine learning, you've developed numerous anomaly detection systems for financial institutions. Your expertise in time-series analysis has helped prevent millions in fraudulent transactions."`
+
+## 最佳实践
+
+- 确保角色、目标和背景故事三者之间逻辑一致
+- 根据任务复杂性调整智能体专业水平
+- 使用"你"的第二人称来描述背景故事，提高代入感
+- 为智能体定义清晰的责任边界
+- 考虑智能体间的协作方式，确保角色互补
+
+## 代码示例
+
+```python
+from cursor import Agent
+
+data_scientist = Agent(
+    role="Senior Data Scientist specialized in anomaly detection",
+    goal="Analyze the provided time-series data to identify patterns and anomalies, then create a comprehensive report with visualizations",
+    backstory="With over 15 years of experience in statistical analysis and machine learning, you've developed numerous anomaly detection systems for financial institutions. Your expertise in time-series analysis has helped prevent millions in fraudulent transactions.",
+    verbose=True,
+    allow_delegation=False
+)
+```
+
+遵循上述准则，确保创建的智能体能够有效执行其分配的任务，同时与其他智能体协同工作。

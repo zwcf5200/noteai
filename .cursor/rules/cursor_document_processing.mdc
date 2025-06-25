@@ -1,0 +1,123 @@
+---
+description: Cursor文档处理能力的使用规范
+globs:
+alwaysApply: false
+---
+
+# 文档处理能力
+
+使用Cursor处理文档时，应优先使用最新的检索增强生成(RAG)工具，并遵循相关最佳实践。
+
+## 推荐工具
+
+1. **文档类型处理工具**：
+   - **DOCXSearchTool**: 处理Word文档
+   - **PDFSearchTool**: 处理PDF文件
+   - **WebsiteSearchTool**: 处理网页内容
+   - **TextSearchTool**: 处理纯文本文件
+
+2. **向量检索工具**：
+   - **ChunkingTool**: 文档分块
+   - **EmbeddingTool**: 文本向量化
+   - **VectorDBTool**: 向量数据库交互
+
+## 工具使用流程
+
+1. **文档加载**：
+   - 使用适当的工具加载文档
+   - 验证文档格式和内容完整性
+   - 处理常见编码和格式问题
+
+2. **文档分块**：
+   - 选择合适的分块策略(固定大小、语义分块)
+   - 设置适当的块大小和重叠区域
+   - 保留文档结构信息
+
+3. **向量化与检索**：
+   - 选择合适的嵌入模型
+   - 实现高效的相似度搜索
+   - 使用混合检索策略提高准确性
+
+## 性能与可靠性
+
+1. **内存管理**：
+   - 对大型文档采用流式处理
+   - 实现部分加载机制
+   - 注意向量存储的内存占用
+
+2. **错误处理**：
+   - 处理格式不一致、损坏文档
+   - 实现超时和重试机制
+   - 提供优雅的降级方案
+
+## 工具限制与注意事项
+
+1. **DOCXSearchTool**：
+   - 支持.docx格式，但可能不支持旧版.doc
+   - 可能无法处理复杂表格和嵌入对象
+   - 格式化内容可能会丢失
+
+2. **PDFSearchTool**：
+   - 扫描PDF需要OCR预处理
+   - 可能无法保留复杂布局信息
+   - 表格和图表需要专门处理
+
+3. **通用限制**：
+   - 文档大小限制(通常不超过25MB)
+   - API速率限制和配额
+   - 处理速度与文档复杂度相关
+
+## 代码示例
+
+```python
+from cursor import Agent, Task, Crew
+from cursor_tools import DOCXSearchTool, PDFSearchTool
+
+# 初始化文档处理工具
+docx_tool = DOCXSearchTool(
+    documents_path="./docs/specifications/",  # 文档目录
+    recursive=True,                           # 递归搜索子目录
+    max_results=5,                            # 最大结果数
+    chunk_size=1000,                          # 分块大小
+    overlap=100                               # 重叠区域
+)
+
+pdf_tool = PDFSearchTool(
+    documents_path="./docs/reports/",
+    recursive=True,
+    max_results=5
+)
+
+# 创建文档分析智能体
+document_analyst = Agent(
+    role="Document Analyst",
+    goal="Extract and analyze key information from technical documents",
+    backstory="You are a document analysis expert with exceptional skills in information extraction and synthesis.",
+    verbose=True,
+    tools=[docx_tool, pdf_tool]
+)
+
+# 创建文档分析任务
+analysis_task = Task(
+    description="Analyze the technical specifications and extract the key requirements",
+    agent=document_analyst,
+    expected_output="A comprehensive list of technical requirements with their priorities",
+    detailed_description="""
+    1. Search through the specifications documents for requirement definitions
+    2. Identify priority levels for each requirement
+    3. Categorize requirements by functional area
+    4. Compile a structured report of all requirements
+    """
+)
+
+# 创建并执行工作流
+document_crew = Crew(
+    agents=[document_analyst],
+    tasks=[analysis_task],
+    verbose=2
+)
+
+result = document_crew.kickoff()
+```
+
+使用文档处理工具时，应了解各工具的限制和最佳用例，确保选择合适的工具并提供适当的错误处理机制。

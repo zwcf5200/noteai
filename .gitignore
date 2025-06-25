@@ -28,3 +28,6 @@ product.overrides.json
 .tool-versions
 src/vs/workbench/contrib/void/browser/react/out/**
 src/vs/workbench/contrib/void/browser/react/src2/**
+
+!.serena/
+.serena/cache/typescript/document_symbols_cache_v23-06-25.pkl
